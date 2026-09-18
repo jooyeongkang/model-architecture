@@ -6,17 +6,31 @@ It works for business-rule engines, statistical models, optimization models, for
 
 ## Runtime flow
 
-```mermaid
-flowchart LR
-    E[Entrypoint] --> P[Pipeline]
-    P --> S[DataSource]
-    S -->|RawData| D[DataProcessor]
-    D -->|ModelInput| M[Model]
-    M -->|ModelResult| R[OutputRenderer]
-    R --> A[TableArtifact / PlotArtifact]
-```
+One call to `Pipeline.run()` drives the whole workflow. Every arrow starts at the pipeline: collaborators never call each other, so each one can be tested and replaced on its own.
 
-`Pipeline` is the only object that knows the full workflow:
+```mermaid
+sequenceDiagram
+    autonumber
+    participant E as Entrypoint
+    participant P as Pipeline
+    participant S as DataSource
+    participant D as DataProcessor
+    participant M as Model
+    participant R as OutputRenderer
+
+    E->>P: run(request)
+    P->>S: retrieve(request)
+    S-->>P: RawData
+    P->>D: process(raw_data)
+    D-->>P: ModelInput
+    P->>M: run(model_input)
+    M-->>P: ModelResult
+    loop once per renderer
+        P->>R: render(model_result)
+        R-->>P: Artifact
+    end
+    P-->>E: PipelineResult
+```
 
 1. `DataSource.retrieve()` performs external I/O and returns raw data.
 2. `DataProcessor.process()` validates and transforms raw data into model-ready input.
@@ -25,9 +39,83 @@ flowchart LR
 
 The `Model` never retrieves data or renders output. This makes business logic deterministic and easy to test.
 
+## Object relations
+
+Four single-method protocols, their implementations, and the pipeline that holds them:
+
+```mermaid
+classDiagram
+    direction LR
+
+    class Pipeline {
+        +DataSource data_source
+        +DataProcessor processor
+        +Model model
+        +tuple~OutputRenderer~ renderers
+        +run(request) PipelineResult
+    }
+    class PipelineResult {
+        +ModelResultT model_result
+        +tuple~ArtifactT~ artifacts
+    }
+
+    class DataSource {
+        <<Protocol>>
+        +retrieve(request) RawDataT
+    }
+    class DataProcessor {
+        <<Protocol>>
+        +process(raw_data) ModelInputT
+    }
+    class Model {
+        <<Protocol>>
+        +run(model_input) ModelResultT
+    }
+    class OutputRenderer {
+        <<Protocol>>
+        +render(model_result) ArtifactT
+    }
+
+    class InMemoryDataSource {
+        +retrieve(request) RawDataT
+    }
+    class TableRenderer {
+        +render(model_result) TableArtifact
+    }
+    class PlotRenderer {
+        +render(model_result) PlotArtifact
+    }
+
+    Pipeline *-- DataSource
+    Pipeline *-- DataProcessor
+    Pipeline *-- Model
+    Pipeline *-- OutputRenderer
+    Pipeline ..> PipelineResult : returns
+
+    DataSource <|.. InMemoryDataSource
+    OutputRenderer <|.. TableRenderer
+    OutputRenderer <|.. PlotRenderer
+
+    class TableArtifact {
+        +str name
+        +tuple~str~ columns
+        +tuple~tuple~ rows
+    }
+    class PlotArtifact {
+        +str title
+        +str kind
+        +tuple~PlotSeries~ series
+    }
+
+    TableRenderer ..> TableArtifact : builds
+    PlotRenderer ..> PlotArtifact : builds
+```
+
+The dashed "implements" arrows are **structural**, not inheritance. Nothing subclasses a protocol and no adapter imports one — an object qualifies by having the right method, and `mypy` verifies that where the pipeline is assembled in `bootstrap.py`.
+
 ## Layers
 
-Every contract is a single-method `typing.Protocol`, and one rule decides where it lives:
+One rule decides where a contract lives:
 
 > If it touches the outside world, it is a **port**. Otherwise it is **domain**.
 
@@ -41,7 +129,30 @@ Every contract is a single-method `typing.Protocol`, and one rule decides where 
 | `artifacts.py` | Shared presentation values | `TableArtifact`, `PlotArtifact`, `PlotSeries` |
 | `bootstrap.py` | Composition root | Builds and injects collaborators |
 
-Artifacts sit at the top level rather than inside `adapters/` because they are the stable currency every layer passes around, not a replaceable implementation detail.
+Imports only ever point downward, into modules that import nothing back:
+
+```mermaid
+flowchart TD
+    E["entrypoints/"] --> B["bootstrap.py"]
+    E --> A
+    B --> AP["application/"]
+    B --> AD["adapters/"]
+
+    subgraph core ["stable core"]
+        direction LR
+        P["ports/"]
+        D["domain/"]
+        A["artifacts.py"]
+    end
+
+    AP --> P
+    AP --> D
+    AD --> A
+```
+
+Nothing in the stable core imports anything else in the package, so the arrows only ever run one way. (`examples/` is left out above: it is demo code imported by `entrypoints/` and `bootstrap.py`, and it imports only `domain/` and `artifacts.py`.)
+
+Two properties fall out of this. `bootstrap.py` is the only module that names every layer at once, so swapping an adapter is a one-line change there. And artifacts sit at the top level rather than inside `adapters/` because they are the stable currency every layer passes around, not a replaceable implementation detail.
 
 ## Project structure
 

@@ -1,5 +1,7 @@
 # Model Architecture
 
+[![CI](https://github.com/jooyeongkang/model-architecture/actions/workflows/ci.yml/badge.svg)](https://github.com/jooyeongkang/model-architecture/actions/workflows/ci.yml)
+
 An opinionated but framework-neutral baseline for building data-driven models with Python 3.13 and `uv`.
 
 It works for business-rule engines, statistical models, optimization models, forecasting pipelines, simulations, and machine-learning inference. The core package does not depend on a dataframe library, plotting library, database client, or web framework.
@@ -168,8 +170,8 @@ src/model_architecture/
 └── bootstrap.py        # Dependency construction
 
 tests/
-├── unit/
-└── integration/
+├── unit/          # one collaborator at a time
+└── integration/   # whole pipeline, InMemoryDataSource in place of real I/O
 ```
 
 ## Quick start
@@ -196,6 +198,34 @@ uv run ruff format --check .
 uv run mypy
 ```
 
+## Where to define your types
+
+`RawDataT`, `ModelInputT`, and `ModelResultT` are type parameters, bound to concrete types in `bootstrap.py`. Define those concrete types in `domain/`:
+
+| Type | Home | Why |
+| --- | --- | --- |
+| `Request` | `domain/` | Business vocabulary |
+| `RawData` | `domain/` | See the rule below |
+| `ModelInput` | `domain/` | Business vocabulary |
+| `ModelResult` | `domain/` | Business vocabulary |
+| Artifacts | `artifacts.py` | Already there |
+
+Putting them in `domain/` keeps it a leaf that adapters depend on, rather than the reverse. Define one in `adapters/` and your `DataProcessor` ends up importing an adapter.
+
+One rule settles `RawData`, whose shape is otherwise driven by the source:
+
+> Nothing vendor-shaped crosses a port.
+
+A `DataSource` returns a type you own. Raw database tuples and vendor JSON stop inside the adapter, which converts them:
+
+```python
+def retrieve(self, request: ChurnRequest, /) -> ChurnRawData:
+    vendor_rows: list[tuple[str, int, float]] = cursor.fetchall()
+    return ChurnRawData(accounts=tuple(AccountRecord(*row) for row in vendor_rows))
+```
+
+The adapter does mechanical deserialization; the `DataProcessor` does validation and feature building. Follow this and swapping Postgres for an API changes one file.
+
 ## Add a new model
 
 1. Define typed `RawData`, `ModelInput`, and `ModelResult` objects for the use case.
@@ -204,5 +234,11 @@ uv run mypy
 4. Implement `Model` with business logic only.
 5. Write a `ModelResult -> Artifact` mapper and wrap it in `TableRenderer` or `PlotRenderer`.
 6. Construct those objects in `bootstrap.py` and inject them into `Pipeline`.
+
+Every renderer on one `Pipeline` must agree on a single `ArtifactT`. To emit both a table and a plot from one run, widen the parameter and dispatch on the artifact type in the entrypoint:
+
+```python
+Pipeline[ChurnRequest, ChurnRawData, ChurnFeatures, ChurnScores, TableArtifact | PlotArtifact]
+```
 
 Use `typing.Protocol` contracts instead of inheritance-heavy base classes. Objects only need to provide the expected method, which keeps implementations small and easy to replace.

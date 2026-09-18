@@ -1,15 +1,16 @@
-"""Orchestrate repository, processing, model, and output objects."""
+"""Sequence a data source, processor, model, and renderers into one run."""
 
 from dataclasses import dataclass
 
-from model_architecture.domain.contracts import Data, Model
-from model_architecture.ports.data_repo import DataRepo
-from model_architecture.ports.output import Output
+from model_architecture.domain.data_processor import DataProcessor
+from model_architecture.domain.model import Model
+from model_architecture.ports.data_source import DataSource
+from model_architecture.ports.output_renderer import OutputRenderer
 
 
 @dataclass(frozen=True, slots=True)
 class PipelineResult[ModelResultT, ArtifactT]:
-    """The business result and every generated presentation artifact."""
+    """The business result and every artifact rendered from it."""
 
     model_result: ModelResultT
     artifacts: tuple[ArtifactT, ...]
@@ -19,19 +20,19 @@ class PipelineResult[ModelResultT, ArtifactT]:
 class Pipeline[RequestT, RawDataT, ModelInputT, ModelResultT, ArtifactT]:
     """Coordinate one complete model execution.
 
-    Dependencies are supplied by the composition root in ``bootstrap.py``.
+    Collaborators are supplied by the composition root in ``bootstrap.py``.
     The pipeline owns sequencing but contains no retrieval, transformation,
     business, or presentation logic itself.
     """
 
-    data_repo: DataRepo[RequestT, RawDataT]
-    data: Data[RawDataT, ModelInputT]
+    data_source: DataSource[RequestT, RawDataT]
+    processor: DataProcessor[RawDataT, ModelInputT]
     model: Model[ModelInputT, ModelResultT]
-    outputs: tuple[Output[ModelResultT, ArtifactT], ...] = ()
+    renderers: tuple[OutputRenderer[ModelResultT, ArtifactT], ...] = ()
 
     def run(self, request: RequestT, /) -> PipelineResult[ModelResultT, ArtifactT]:
-        raw_data = self.data_repo.retrieve(request)
-        model_input = self.data.process(raw_data)
+        raw_data = self.data_source.retrieve(request)
+        model_input = self.processor.process(raw_data)
         model_result = self.model.run(model_input)
-        artifacts = tuple(output.generate(model_result) for output in self.outputs)
+        artifacts = tuple(renderer.render(model_result) for renderer in self.renderers)
         return PipelineResult(model_result=model_result, artifacts=artifacts)

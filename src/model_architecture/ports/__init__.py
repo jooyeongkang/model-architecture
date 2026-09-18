@@ -1,6 +1,10 @@
-"""Interfaces between the application and external adapters."""
+"""How the application connects to the outside world.
 
-from model_architecture.ports.data_repo import DataRepo
-from model_architecture.ports.output import Output
+Each port is a contract the application depends on and an adapter fulfils.
+Ports face outward; ``domain`` contracts face inward.
+"""
 
-__all__ = ["DataRepo", "Output"]
+from model_architecture.ports.data_source import DataSource
+from model_architecture.ports.output_renderer import OutputRenderer
+
+__all__ = ["DataSource", "OutputRenderer"]

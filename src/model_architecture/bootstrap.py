@@ -1,11 +1,15 @@
-"""Composition root: construct and connect concrete dependencies here."""
+"""Composition root: construct and connect concrete collaborators here.
 
-from model_architecture.adapters.outputs.artifacts import TableArtifact
-from model_architecture.adapters.outputs.mapped import TableOutput
+This is the only module that names every layer at once. Entrypoints call
+it; nothing else imports adapters directly.
+"""
+
+from model_architecture.adapters.renderers.mapped import TableRenderer
 from model_architecture.application.pipeline import Pipeline
+from model_architecture.artifacts import TableArtifact
 from model_architecture.examples.summary import (
-    NumericData,
-    SummaryDataRepo,
+    NumericDataProcessor,
+    SummaryDataSource,
     SummaryModel,
     SummaryRequest,
     SummaryResult,
@@ -23,8 +27,8 @@ def build_summary_pipeline() -> Pipeline[
     """Build the executable example with constructor injection."""
 
     return Pipeline(
-        data_repo=SummaryDataRepo(),
-        data=NumericData(),
+        data_source=SummaryDataSource(),
+        processor=NumericDataProcessor(),
         model=SummaryModel(),
-        outputs=(TableOutput(summary_table),),
+        renderers=(TableRenderer(summary_table),),
     )

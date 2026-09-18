@@ -1,7 +1,7 @@
 import pytest
 
-from model_architecture.adapters.outputs.artifacts import PlotArtifact, PlotSeries, TableArtifact
-from model_architecture.adapters.outputs.mapped import PlotOutput
+from model_architecture.adapters.renderers import PlotRenderer
+from model_architecture.artifacts import PlotArtifact, PlotSeries, TableArtifact
 
 
 def test_table_artifact_rejects_rows_with_wrong_width() -> None:
@@ -14,12 +14,12 @@ def test_plot_series_rejects_mismatched_coordinates() -> None:
         PlotSeries(name="invalid", x=(1.0,), y=(1.0, 2.0))
 
 
-def test_plot_output_maps_a_result_to_an_artifact() -> None:
+def test_plot_renderer_maps_a_result_to_an_artifact() -> None:
     expected = PlotArtifact(
         title="result",
         kind="line",
         series=(PlotSeries(name="value", x=(1.0,), y=(2.0,)),),
     )
-    output = PlotOutput[int](lambda _: expected)
+    renderer = PlotRenderer[int](lambda _: expected)
 
-    assert output.generate(2) == expected
+    assert renderer.render(2) == expected

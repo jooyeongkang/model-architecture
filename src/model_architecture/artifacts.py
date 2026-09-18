@@ -1,4 +1,9 @@
-"""Library-neutral artifacts produced by output adapters."""
+"""Library-neutral presentation values shared by every layer.
+
+Artifacts are the currency renderers produce and entrypoints deliver. They
+describe *what* to show without importing a plotting, dataframe, or
+templating library, so the same result can be printed, charted, or served.
+"""
 
 from dataclasses import dataclass
 

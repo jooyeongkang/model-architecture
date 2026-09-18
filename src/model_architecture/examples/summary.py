@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from math import isfinite
 
-from model_architecture.adapters.outputs.artifacts import TableArtifact
+from model_architecture.artifacts import TableArtifact
 from model_architecture.domain.errors import DataValidationError
 
 
@@ -19,14 +19,17 @@ class SummaryResult:
     mean: float
 
 
-class SummaryDataRepo:
-    """Example repository that reads raw values from the request."""
+class SummaryDataSource:
+    """Read raw values straight off the request.
+
+    A production source would query a database, object store, or API here.
+    """
 
     def retrieve(self, request: SummaryRequest, /) -> tuple[float, ...]:
         return request.values
 
 
-class NumericData:
+class NumericDataProcessor:
     """Validate raw values before they enter the model."""
 
     def process(self, raw_data: tuple[float, ...], /) -> tuple[float, ...]:

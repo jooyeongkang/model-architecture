@@ -1,6 +1,6 @@
 import pytest
 
-from model_architecture.adapters.outputs.artifacts import TableArtifact
+from model_architecture.artifacts import TableArtifact
 from model_architecture.bootstrap import build_summary_pipeline
 from model_architecture.domain.errors import DataValidationError
 from model_architecture.examples.summary import SummaryRequest, SummaryResult

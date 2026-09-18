@@ -9,7 +9,7 @@ class Trace:
 
 
 @dataclass
-class FakeDataRepo:
+class FakeDataSource:
     trace: Trace
 
     def retrieve(self, request: str, /) -> str:
@@ -18,7 +18,7 @@ class FakeDataRepo:
 
 
 @dataclass
-class FakeData:
+class FakeDataProcessor:
     trace: Trace
 
     def process(self, raw_data: str, /) -> str:
@@ -36,35 +36,35 @@ class FakeModel:
 
 
 @dataclass
-class FakeOutput:
+class FakeRenderer:
     trace: Trace
 
-    def generate(self, model_result: str, /) -> str:
-        self.trace.calls.append("output")
+    def render(self, model_result: str, /) -> str:
+        self.trace.calls.append("render")
         return f"artifact:{model_result}"
 
 
-def test_pipeline_coordinates_dependencies_in_order() -> None:
+def test_pipeline_coordinates_collaborators_in_order() -> None:
     trace = Trace()
     pipeline: Pipeline[str, str, str, str, str] = Pipeline(
-        data_repo=FakeDataRepo(trace),
-        data=FakeData(trace),
+        data_source=FakeDataSource(trace),
+        processor=FakeDataProcessor(trace),
         model=FakeModel(trace),
-        outputs=(FakeOutput(trace),),
+        renderers=(FakeRenderer(trace),),
     )
 
     result = pipeline.run("request-1")
 
     assert result.model_result == "RAW"
     assert result.artifacts == ("artifact:RAW",)
-    assert trace.calls == ["retrieve:request-1", "process", "model", "output"]
+    assert trace.calls == ["retrieve:request-1", "process", "model", "render"]
 
 
-def test_pipeline_can_return_a_result_without_outputs() -> None:
+def test_pipeline_can_return_a_result_without_renderers() -> None:
     trace = Trace()
     pipeline: Pipeline[str, str, str, str, str] = Pipeline(
-        data_repo=FakeDataRepo(trace),
-        data=FakeData(trace),
+        data_source=FakeDataSource(trace),
+        processor=FakeDataProcessor(trace),
         model=FakeModel(trace),
     )
 
